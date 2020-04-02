@@ -1,0 +1,23 @@
+{
+  "name": "y",
+  "version": "1.0.0",
+  "description": "DJI Tello Drone Web Socket Server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markwinap/DJI-Tello-WS-Server.git"
+  },
+  "author": "Marco Martinez (markwinap@gmail.com)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/markwinap/DJI-Tello-WS-Server/issues"
+  },
+  "homepage": "https://github.com/markwinap/DJI-Tello-WS-Server#readme",
+  "dependencies": {
+    "colors": "^1.4.0",
+    "ws": "^7.2.3"
+  }
+}
