@@ -27,12 +27,14 @@ websocket.on('connection', function connection(websocket) {
   });
   websocket.on('message', function incoming(msg) {
     let obj = JSON.parse(msg);
-    let cmd;
-    cmd = getButton(obj.buttons) ? getButton(obj.buttons) : getAxes(obj.axes);
-    if (cmd != temp_input) {
-      temp_input = cmd;
-      //websocket.send(cmd);
-      //sendCMD(cmd);
+    console.log(obj);
+    switch (obj.action) {
+      case 'command':
+        sendCMD(obj.data);
+        break;
+
+      default:
+        break;
     }
   });
   websocket.on('close', function close(msg) {
@@ -48,7 +50,7 @@ server.on('error', err => {
 server.on('message', (msg, rinfo) => {
   //UNCOMNET FOR DEBUG
   console.log(`server got: ${msg} from ${rinfo.address}:${rinfo.port}`);
-  nextCMD(rinfo.address); //Check if commands available
+  //nextCMD(rinfo.address); //Check if commands available
 });
 server.on('listening', () => {
   let address = server.address();
@@ -65,14 +67,8 @@ status.on('listening', function() {
 status.on('message', function(message, remote) {
   //UNCOMNET FOR DEBUG
   //console.log(`${remote.address}:${remote.port} - ${message}`);
-  let msg_obj = dataSplit(message.toString());
-  if (commands.hasOwnProperty(remote.address)) {
-    commands[remote.address]['status'] = msg_obj;
-  } else {
-    commands = Object.assign(commands, {
-      [remote.address]: { status: msg_obj }
-    });
-  }
+  const _msg_obj = dataSplit(message.toString());
+  sendWS(JSON.stringify({ status: _msg_obj }));
 });
 status.bind(port_status);
 //###UDP### VIDEO
@@ -89,17 +85,8 @@ video.on('message', (msg, rinfo) => {
     counter++;
     if (counter == 3) {
       //COLLECT 3 FRAMES AND SEND TO WEBSOCKET
-      let temp = Buffer.concat(videoBuff);
+      sendWS(JSON.stringify({ video: Buffer.concat(videoBuff) }));
       counter = 0;
-      websocket.clients.forEach(function each(client) {
-        if (client.readyState === WebSocket.OPEN) {
-          try {
-            client.send(temp); //SEND OVER WEBSOCKET
-          } catch (e) {
-            console.log(`Sending failed:`, e);
-          }
-        }
-      });
       videoBuff.length = 0;
       videoBuff = [];
     }
@@ -126,4 +113,29 @@ function dataSplit(str) {
     }
   }
   return data;
+}
+//###OTHER FUNCTIONS
+function sendCMD(command) {
+  //SEND BYTE ARRAY TO TELLO OVER UDP
+  return new Promise((resolve, reject) => {
+    let msg = Buffer.from(command);
+    server.send(msg, 0, msg.length, port, tello_default, function(err) {
+      // tello - 192.168.10.1
+      if (err) {
+        console.error(err);
+        reject(`ERROR : ${command}`);
+      } else resolve('OK');
+    });
+  });
+}
+function sendWS(data) {
+  websocket.clients.forEach(function each(client) {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(data); //SEND OVER WEBSOCKET
+      } catch (e) {
+        console.log(`Sending failed:`, e);
+      }
+    }
+  });
 }
