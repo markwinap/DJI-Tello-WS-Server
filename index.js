@@ -1,38 +1,57 @@
+//Env variables
+require('dotenv').config();
+//FILE SYSTEM READ WRITE FILES
+const fs = require('fs');
 //CONSOLE COLORS
 const colors = require('colors');
-
 //UPP
 const dgram = require('dgram');
 const server = dgram.createSocket('udp4'); // UDP SERVER IPv4 FOR SENDING COMMANDS AND RECEIVING COMMAND CONFIRMATION
 const status = dgram.createSocket('udp4'); // UDP SERVER IPv4 FOR RECEIVING STATUS
 const video = dgram.createSocket('udp4'); // UDP SERVER IPv4 FOR RECEIVING VIDEO RAW H264 ENCODED YUV420p
-const port = 8889; //TELLO PORT
-const port_status = 8890; //TELLO STATUS PORT
-const port_video = 11111; //TELLO VIDEO PORT
 //WS
 const WebSocket = require('ws'); //WEBSOCKET
-const port_websocket = 8080; //WEBSOCKET PORT
 //VARIABLES
-const tello_default = '192.168.10.1';
 let videoBuff = []; //VIDEO BUFFER
 let counter = 0; //COUNTER FOR VIDEO BUFFER FRAMES
 let temp_input = '';
+let stats = false;
+let bat_prev = '';
 
+//CONSOLE WELCOME
+fs.readFile('banner/_2', 'utf8', function (err, banner) {
+  console.log(banner.cyan);
+  console.log('1 - RUN THIS SCRIPT'.white);
+  console.log('2 - USE WEB APP TO CONTROL DRONE'.white);
+  console.log('TO STOP THE SERVER USE'.white);
+  console.log(`CTR+C`.inverse);
+  console.log('HAVE FUN (╯°□°）╯︵ ┻━┻'.cyan);
+  console.log('Author: Marco Martinez markwinap@gmail.com'.inverse);
+});
 //###WEBSOCKET### SERVER GAMEPAD
-let websocket = new WebSocket.Server({ port: port_websocket });
+let websocket = new WebSocket.Server({ port: process.env.WS_PORT });
 websocket.on('connection', function connection(websocket) {
   console.log('Socket connected. sending data...');
+  bat_prev = '';
   websocket.on('error', function error(error) {
     console.log('WebSocket error');
   });
   websocket.on('message', function incoming(msg) {
     let obj = JSON.parse(msg);
-    console.log(obj);
+    //console.log(obj); //Debug
     switch (obj.action) {
       case 'command':
         sendCMD(obj.data);
         break;
-
+      case 'service':
+        switch (obj.data) {
+          case 'stats':
+            stats = obj.value; //Enable Disable Stats
+            break;
+          default:
+            break;
+        }
+        break;
       default:
         break;
     }
@@ -43,7 +62,7 @@ websocket.on('connection', function connection(websocket) {
 });
 
 //UDP CLIENT SERVER
-server.on('error', err => {
+server.on('error', (err) => {
   console.log(`server error:\n${err.stack}`);
   server.close();
 });
@@ -57,24 +76,31 @@ server.on('listening', () => {
   //UNCOMNET FOR DEBUG
   console.log(`UDP CMD RESPONSE SERVER - ${address.address}:${address.port}`);
 });
-server.bind(port);
+server.bind(process.env.TELLO_PORT);
 //UDP STATUS SERVER
-status.on('listening', function() {
+status.on('listening', function () {
   let address = status.address();
   //UNCOMNET FOR DEBUG
   console.log(`UDP STATUS SERVER - ${address.address}:${address.port}`);
 });
-status.on('message', function(message, remote) {
+status.on('message', function (message, remote) {
   //UNCOMNET FOR DEBUG
   //console.log(`${remote.address}:${remote.port} - ${message}`);
   const _msg_obj = dataSplit(message.toString());
-  sendWS(JSON.stringify({ status: _msg_obj }));
+  if (stats) {
+    sendWS(JSON.stringify({ status: _msg_obj }));
+  } else {
+    if (bat_prev !== _msg_obj.bat) {
+      sendWS(JSON.stringify({ status: { bat: _msg_obj.bat } }));
+      bat_prev = _msg_obj.bat;
+    }
+  }
 });
-status.bind(port_status);
+status.bind(process.env.TELLO_PORT_STATUS);
 //###UDP### VIDEO
 //INPUT
 //RAW RAW H264 DIVIDED IN MULTIPLE MESSAGES PER FRAME
-video.on('error', err => {
+video.on('error', (err) => {
   console.log(`server error:\n${err.stack}`);
   video.close();
 });
@@ -100,7 +126,7 @@ video.on('listening', () => {
   //UNCOMNET FOR DEBUG
   console.log(`UDP VIDEO SERVER - ${address.address}:${address.port}`);
 });
-video.bind(port_video);
+video.bind(process.env.TELLO_PORT_VIDEO);
 
 function dataSplit(str) {
   //Create JSON OBJ from String  "key:value;"
@@ -119,13 +145,20 @@ function sendCMD(command) {
   //SEND BYTE ARRAY TO TELLO OVER UDP
   return new Promise((resolve, reject) => {
     let msg = Buffer.from(command);
-    server.send(msg, 0, msg.length, port, tello_default, function(err) {
-      // tello - 192.168.10.1
-      if (err) {
-        console.error(err);
-        reject(`ERROR : ${command}`);
-      } else resolve('OK');
-    });
+    server.send(
+      msg,
+      0,
+      msg.length,
+      process.env.TELLO_PORT,
+      process.env.TELLO_IP,
+      function (err) {
+        // tello - 192.168.10.1
+        if (err) {
+          console.error(err);
+          reject(`ERROR : ${command}`);
+        } else resolve('OK');
+      }
+    );
   });
 }
 function sendWS(data) {
