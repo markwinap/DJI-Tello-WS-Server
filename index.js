@@ -28,8 +28,32 @@ fs.readFile('banner/_2', 'utf8', function (err, banner) {
   console.log('HAVE FUN (╯°□°）╯︵ ┻━┻'.cyan);
   console.log('Author: Marco Martinez markwinap@gmail.com'.inverse);
 });
-//###WEBSOCKET### SERVER GAMEPAD
-let websocket = new WebSocket.Server({ port: process.env.WS_PORT });
+//###WEBSOCKET### SERVER GAMEPAD & VIDEO
+//const websocket = new WebSocket.Server({ port: process.env.WS_PORT });
+const websocket = new WebSocket.Server({
+  port: process.env.WS_PORT,
+  backlog: 1,
+  perMessageDeflate: {
+    zlibDeflateOptions: {
+      // See zlib defaults.
+      chunkSize: 1024,
+      memLevel: 7,
+      level: 3,
+    },
+    zlibInflateOptions: {
+      chunkSize: 10 * 1024,
+    },
+    // Other options settable:
+    clientNoContextTakeover: true, // Defaults to negotiated value.
+    serverNoContextTakeover: true, // Defaults to negotiated value.
+    serverMaxWindowBits: 10, // Defaults to negotiated value.
+    // Below options specified as default values.
+    concurrencyLimit: 10, // Limits zlib concurrency for perf.
+    threshold: 1024, // Size (in bytes) below which messages
+    // should not be compressed.
+  },
+});
+
 websocket.on('connection', function connection(websocket) {
   console.log('Socket connected. sending data...');
   bat_prev = '';
@@ -163,7 +187,7 @@ function sendCMD(command) {
 }
 function sendWS(data) {
   websocket.clients.forEach(function each(client) {
-    if (client.readyState === WebSocket.OPEN) {
+    if (client.readyState === 1 && client.bufferedAmount === 0) {
       try {
         client.send(data); //SEND OVER WEBSOCKET
       } catch (e) {
