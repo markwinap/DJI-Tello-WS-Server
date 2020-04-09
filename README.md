@@ -9,6 +9,12 @@ cd DJI-Tello-WS-Server
 npm install
 npm start
 
+## Run portal locally
+
+cd tello-ws-portal
+npm install
+npm start
+
 ## ONLY for accessing drone over internet (tunnel)
 
 ### Intall ngrok
